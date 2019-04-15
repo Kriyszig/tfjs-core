@@ -22,13 +22,71 @@
 import {ENGINE} from '../engine';
 import {dispose} from '../globals';
 import {Tensor, Tensor1D, Tensor2D} from '../tensor';
+import {TypedArray} from '../types';
 import {assert} from '../util';
+
 import {eye, squeeze, stack, unstack} from './array_ops';
 import {split} from './concat_split';
 import {norm} from './norm';
 import {op} from './operation';
 import {sum} from './reduction_ops';
 import {tensor2d} from './tensor_ops';
+
+function cholesky_(x: Tensor): Tensor2D[] {
+  if (x.rank < 2) {
+    throw new Error(
+        `cholesky() requires input tensor of rank >= 2 but found tensor of` +
+        ` rank ${x.rank}`);
+  } else if (x.shape[x.shape.length - 1] !== x.shape[x.shape.length - 2]) {
+    throw new Error(
+        `cholesky() requires input tensor with two innermost dimension equal` +
+        ` but found a tensor of dimension ${x.shape}`);
+  }
+
+  const n = x.shape[x.shape.length - 1];
+  const xData = x.dataSync();
+  const totalElements = x.shape.reduce((a, b) => (a + b));
+  let res: Tensor2D[];
+  res = [];
+
+  for (let i = 0; i < totalElements; i += n * n) {
+    res.push(cholesky2d(xData.slice(i, i + n * n), n));
+  }
+
+  return res;
+}
+
+function cholesky2d(xData: TypedArray, n: number): Tensor2D {
+  return ENGINE.tidy(() => {
+    let ltm: number[];
+    ltm = new Array(n * n).fill(0);
+
+    for (let i = 0; i < n; ++i) {
+      for (let j = 0; j <= i; ++j) {
+        ltm[i * n + j] = xData[i * n + j];
+        for (let k = 0; k < j; ++k) {
+          ltm[i * n + j] -= (ltm[i * n + k] * ltm[j * n + k]);
+        }
+
+        if (i === j) {
+          if (ltm[i * n + j] < 0) {
+            return null;
+          }
+
+          ltm[i * n + j] = Math.sqrt(ltm[i * n + j]);
+        } else {
+          if (ltm[j * n + j] === 0) {
+            return null;
+          }
+
+          ltm[i * n + j] = ltm[i * n + j] / ltm[j * n + j];
+        }
+      }
+    }
+
+    return tensor2d(ltm, [n, n]);
+  }) as Tensor2D;
+}
 
 /**
  * Gram-Schmidt orthogonalization.
@@ -265,3 +323,4 @@ function qr2d(x: Tensor2D, fullMatrices = false): [Tensor2D, Tensor2D] {
 
 export const gramSchmidt = op({gramSchmidt_});
 export const qr = op({qr_});
+export const cholesky = op({cholesky_});

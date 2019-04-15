@@ -22,6 +22,16 @@ import {expectArraysClose} from '../test_util';
 
 import {scalar, tensor1d, tensor2d, tensor3d, tensor4d} from './ops';
 
+describeWithFlags('cholesky', ALL_ENVS, () => {
+  it('3X3', () => {
+    const x = tf.tensor2d([[4, 12, -16], [12, 37, -43], [-16, -43, 98]]);
+    const res = tf.linalg.cholesky(x);
+    expect(res.length).toEqual(1);
+    expectArraysClose(res[0], tensor2d([[2, 0, 0], [6, 1, 0], [-8, 5, 3]]));
+    expectArraysClose(res[0].matMul(res[0].transpose()), x);
+  });
+});
+
 describeWithFlags('gramSchmidt-tiny', ALL_ENVS, () => {
   it('2x2, Array of Tensor1D', () => {
     const xs: Tensor1D[] = [
